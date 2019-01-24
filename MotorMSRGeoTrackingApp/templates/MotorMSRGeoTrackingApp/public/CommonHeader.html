@@ -1,0 +1,94 @@
+{% load static from staticfiles %}
+<head>
+
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700" rel="stylesheet">
+    <link href="{% static "assets/libraries/slick/slick.css" %}" rel="stylesheet" type="text/css">
+    <link href="{% static "assets/libraries/slick/slick-theme.css" %}" rel="stylesheet" type="text/css">
+    <link href="{% static "assets/css/trackpad-scroll-emulator.css" %}" rel="stylesheet" type="text/css">
+    <link href="{% static "assets/css/chartist.min.css" %}" rel="stylesheet" type="text/css">
+    <link href="{% static "assets/css/jquery.raty.css" %}" rel="stylesheet" type="text/css">
+    <link href="{% static "assets/fonts/font-awesome/css/font-awesome.min.css" %}" rel="stylesheet" type="text/css">
+    <link href="{% static "assets/css/nouislider.min.css" %}" rel="stylesheet" type="text/css">
+    <link href="{% static "assets/css/explorer.css" %}" rel="stylesheet" type="text/css">
+    <link href="{% static "assets/css/togglebuttons.css" %}" rel="stylesheet" />
+    <link href="{% static "assets/css/gmaps-sidebar.css" %}" rel="stylesheet" />
+    <link href="{% static "assets/css/noty.css" %}" rel="stylesheet" />
+    <link rel="shortcut icon" type="image/x-icon" href="{% static "assets/img/favicon.png" %}">
+    <title>Motor MSR Tracking</title>
+
+
+    <script src="http://maps.googleapis.com/maps/api/js?libraries=weather,geometry,visualization,places,drawing&key=AIzaSyDsuzNnJrvwFhot_ciZ7wkArQmHCj38ZaI" type="text/javascript"></script>
+
+    <script type="text/javascript" src="{% static "assets/js/jquery.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/tether.min.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/bootstrap.min.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/chartist.min.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/google-map-richmarker.min.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/google-map-infobox.min.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/google-map-markerclusterer.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/google-map.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/jquery.trackpad-scroll-emulator.min.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/jquery.inlinesvg.min.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/jquery.affix.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/jquery.scrollTo.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/libraries/slick/slick.min.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/nouislider.min.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/jquery.raty.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/wNumb.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/particles.min.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/explorer.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/explorer-map-search.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/jquery-sidebar.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/MeasureTool.min.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/bootstrap-toggle.min.js" %}"></script>
+    <script type="text/javascript" src="{% static "assets/js/noty.min.js" %}"></script>
+
+    <style>
+        #infowindow-content {
+            /*display: none;*/
+        }
+
+        #map #infowindow-content {
+            display: inline;
+        }
+        .controls {
+            background-color: #fff;
+            border-radius: 2px;
+            border: 1px solid transparent;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            box-sizing: border-box;
+            font-family: Roboto;
+            font-size: 15px;
+            font-weight: 300;
+            height: 29px;
+            margin-left: 17px;
+            margin-top: 10px;
+            outline: none;
+            padding: 0 11px 0 13px;
+            text-overflow: ellipsis;
+            width: 400px;
+        }
+
+        .controls:focus {
+            border-color: #4d90fe;
+        }
+
+        #mapLoader {
+                position: absolute;
+                left: 50%;
+                top: 20%;
+                z-index: 1000;
+                width: 120px;
+            }
+
+    </style>
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+
+
+</head>

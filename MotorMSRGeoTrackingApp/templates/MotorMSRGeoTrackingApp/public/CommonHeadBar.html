@@ -1,0 +1,65 @@
+{% load static %}
+<div class="header-wrapper">
+    <div class="header">
+        <div class="container">
+            <div class="header-inner">
+                <div class="navigation-toggle toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+                <!-- /.header-toggle -->
+                <div class="header-logo">
+                    <a href="#">
+                        <img src="{% static "assets/img/logo.svg"%}" class="svg" alt="Home">
+                    </a>
+                    <a href="#" class="header-title">Field Force Tracker</a>
+                </div>
+                <!-- /.header-logo -->
+                <div class="header-nav">
+                    <div class="primary-nav-wrapper">
+                        <ul class="nav">
+                            <li class="nav-item">
+                                <a href="{% url 'MSRCurrentLocation' %}" class="{% if request.resolver_match.url_name == "MSRCurrentLocation" %}nav-link active {% else %} nav-link {% endif %}">Current Location</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'LocationAnalysis' %}" class="{% if request.resolver_match.url_name == "LocationAnalysis" %}nav-link active {% else %} nav-link {% endif %}">Location Analysis</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'PathTracking' %}" class="{% if request.resolver_match.url_name == "PathTracking" %}nav-link active {% else %} nav-link {% endif %}">Path Tracking</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'LiveTracking' %}" class="{% if request.resolver_match.url_name == "LiveTracking" %}nav-link active {% else %} nav-link {% endif %}">Live Tracking</a>
+                            </li>
+                            <li class="nav-item">
+                                <a href="{% url 'PharmaFFTracking' %}" class="{% if request.resolver_match.url_name == "PharmaFFTracking" %}nav-link active {% else %} nav-link {% endif %}">FF Tracking</a>
+                            </li>
+                        </ul>
+                    </div>
+                    <!-- /.primary-nav-wrapper -->
+                </div>
+                <div class="header-toggle toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+                <!-- /.header-toggle -->
+{#                <div class="header-actions">#}
+{#                    <ul class="nav nav-pills">#}
+{#                        <li class="nav-item">#}
+{#                            <a href="#" class="nav-link modal-submit" id="modal-action-submit" data-toggle="modal"#}
+{#                               data-target="#modal-submit">#}
+{#                                <i class="fa fa-plus"></i> <span>Submit Listing</span>#}
+{#                            </a>#}
+{#                        </li>#}
+{#                    </ul>#}
+{#                </div>#}
+                <!-- /.header-actions -->
+            </div>
+            <!-- /.header-inner -->
+        </div>
+        <!-- /.container -->
+    </div>
+    <!-- /.header -->
+</div>
+<!-- /.header-wrapper -->

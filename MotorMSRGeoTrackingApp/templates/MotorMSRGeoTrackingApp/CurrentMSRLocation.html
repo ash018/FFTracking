@@ -1,0 +1,322 @@
+{% extends "./public/dashboardBase.html" %}
+{% load static %}
+
+{% block main_content %}
+    <style>
+        #infowindow-content {
+            /*display: none;*/
+        }
+
+        #map #infowindow-content {
+            display: inline;
+        }
+        .controls {
+            background-color: #fff;
+            border-radius: 2px;
+            border: 1px solid transparent;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            box-sizing: border-box;
+            font-family: Roboto;
+            font-size: 15px;
+            font-weight: 300;
+            height: 29px;
+            margin-left: 17px;
+            margin-top: 10px;
+            outline: none;
+            padding: 0 11px 0 13px;
+            text-overflow: ellipsis;
+            width: 400px;
+        }
+
+        .controls:focus {
+            border-color: #4d90fe;
+        }
+
+    </style>
+
+    <div class="map-wrapper">
+        <div class="map" style="height: 680px;">
+            <div class="map-inner">
+                <div class="map-object">
+                    {#  search box on the map #}
+                    <input id="pac-input" class="controls" type="text" placeholder="Enter a location" style="width: 400px;">
+                    <div id="map-object"></div>
+                    {#  search box marker popup content goes here #}
+                    <div id="infowindow-content">
+                        <span id="place-name" class="title"></span><br>
+                        <span id="place-id"></span><br>
+                        <span id="place-address"></span>
+                    </div>
+                    <div class="map-toolbar">
+                        <div class="map-toolbar-group">
+                            <div id="map-toolbar-action-zoom-in" class="map-toolbar-group-item"><i
+                                    class="fa fa-plus"></i></div>
+                            <!-- /.map-toolbar-group-item -->
+                            <div id="map-toolbar-action-zoom-out" class="map-toolbar-group-item"><i
+                                    class="fa fa-minus"></i></div>
+                            <!-- /.map-toolbar-group-item -->
+                        </div>
+                        <!-- /.map-toolbar-group -->
+                        <div class="map-toolbar-group">
+                            <div id="map-toolbar-action-current-position" class="map-toolbar-group-item"><i
+                                    class="fa fa-location-arrow"></i></div>
+                            <!-- /.map-toolbar-group-item -->
+                            <div id="map-toolbar-action-fullscreen" class="map-toolbar-group-item"><i
+                                    class="fa fa-arrows-alt"></i></div>
+                            <!-- /.map-toolbar-group-item -->
+                        </div>
+                        <!-- /.map-toolbar-group -->
+                        <div class="map-toolbar-group">
+                            <div id="map-toolbar-action-roadmap" class="map-toolbar-group-item">Roadmap</div>
+                            <!-- /.map-toolbar-group-item -->
+                            <div id="map-toolbar-action-satellite" class="map-toolbar-group-item">Satellite</div>
+                            <!-- /.map-toolbar-group-item -->
+                            <div id="map-toolbar-action-terrain" class="map-toolbar-group-item">Terrain</div>
+                            <!-- /.map-toolbar-group-item -->
+                        </div>
+                        <!-- /.map-toolbar-group -->
+                    </div>
+                    <!-- /.map-toolbar -->
+                    <div class="map-filter-wrapper">
+                        <div class="container-fluid">
+{#                            <div class="map-filter">#}
+{#                                <form>#}
+{#                                    <div class="form-group">#}
+{#                                        <input type="text" class="form-control" placeholder="Keyword">#}
+{#                                    </div>#}
+{#                                    <!-- /.form-group -->#}
+{#                                    <div class="form-group">#}
+{#                                        <input type="text" class="form-control" placeholder="Location">#}
+{#                                    </div>#}
+{#                                    <!-- /.form-group -->#}
+{#                                    <div class="form-group">#}
+{#                                        <input type="text" class="form-control" placeholder="Category">#}
+{#                                    </div>#}
+{#                                    <!-- /.form-group -->#}
+{#                                    <div class="form-group">#}
+{#                                        <input type="text" class="form-control" placeholder="Price">#}
+{#                                    </div>#}
+{#                                    <!-- /.form-group -->#}
+{#                                    <button type="submit" class="btn">Filter Listings</button>#}
+{#                                </form>#}
+{#                            </div>#}
+                            <!-- /.map-filter -->
+                        </div>
+                        <!-- /.container -->
+                    </div>
+                    <!-- /.map-filter-wrapper -->
+                </div>
+                <!-- /#map-object -->
+            </div>
+            <!-- /.map-inner -->
+        </div>
+        <!-- /.map -->
+    </div>
+
+    <br><br><br><br><br><br>
+    <div class="cta-small">
+        <div class="container">
+            Current MSR Locations of Yamaha.
+        </div>
+    </div>
+
+
+
+
+
+<script>
+
+    var markers = [];
+    var circleInfographMarkers = [];
+    var map;
+    var center;
+    var infobox;
+    var DATA_LOAD_ZOOM_LEVEL = 14;
+    var adjustmentUnitPriceYearlyDisplay = {};
+    var minMapZoomLevel = 7, defaultZoomLevel = 8;
+    var MILE_TO_METER = 1609.34;
+    $(document).ready(function ()
+    {
+        //Making the map full-screen
+        $('#map-object').css({
+            position: 'absolute',
+            width: $(window).width(),
+            height: $(window).height()-100
+        });
+
+        var data = '{{ Current_MSR_Locations }}';
+        data = JSON.parse(data.replace(/&quot;/g, '"'));
+        var mapLatCenter = 23.777176;   //Dhaka latitude and longtitude
+        var mapLngCenter = 90.399452;
+        var mapCenter = new google.maps.LatLng(mapLatCenter, mapLngCenter);
+        var zoom = defaultZoomLevel;
+        map = new google.maps.Map(document.getElementById('map-object'), {
+                zoom: zoom,
+                scrollwheel: true,
+                mapTypeControl: true,
+                streetViewControl: true,
+                zoomControl: true,
+                center: mapCenter,
+                scaleControl: true,
+                rotateControl: true,
+                fullscreenControl: true,
+                heading: 90,
+                tilt: 45,
+                //mapTypeId: google.maps.MapTypeId.ROADMAP,
+                mapTypeControl: true,
+                mapTypeControlOptions: {
+                    mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain']
+                }
+            });
+
+        //var sidebar = $('#sidebar').sidebar();
+
+
+        //pac-input is the search box input for address input
+        var input = document.getElementById('pac-input');
+        var autocomplete = new google.maps.places.Autocomplete(
+            input, { placeIdOnly: true });
+        autocomplete.bindTo('bounds', map);
+        //setting the search box on top left
+        map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
+
+        var infowindow = new google.maps.InfoWindow();
+        var infowindowContent = document.getElementById('infowindow-content');
+        infowindow.setContent(infowindowContent);
+        infowindow.setOptions({ maxWidth: 450 });
+        var geocoder = new google.maps.Geocoder;
+        var marker = new google.maps.Marker({
+            map: map
+        });
+        marker.addListener('click', function () {
+            infowindow.open(map, marker);
+        });
+
+        autocomplete.addListener('place_changed', function () {
+            infowindow.close();
+            var place = autocomplete.getPlace();
+
+            if (!place.place_id) {
+                return;
+            }
+            geocoder.geocode({ 'placeId': place.place_id }, function (results, status) {
+
+                if (status !== 'OK') {
+                    alert('Geocoder failed due to: ' + status);
+                    return;
+                }
+                map.setZoom(11);
+                map.setCenter(results[0].geometry.location);
+                // Set the position of the marker using the place ID and location.
+                marker.setPlace({
+                    placeId: place.place_id,
+                    location: results[0].geometry.location
+                });
+                marker.setVisible(true);
+                infowindowContent.children['place-name'].textContent = place.name;
+                //infowindowContent.children['place-id'].textContent = place.place_id;
+                infowindowContent.children['place-address'].textContent = results[0].formatted_address;
+                infowindow.open(map, marker);
+            });
+        });
+
+        PopulateMSRCurrentLocations(data);
+
+        function PopulateMSRCurrentLocations(data)
+        {
+            console.log("Populating MSR Location Layer: total data found = " + data.length);
+            var infobox = new InfoBox({
+                content: 'empty',
+                disableAutoPan: false,
+                maxWidth: 0,
+                pixelOffset: new google.maps.Size(-250, -310),
+                zIndex: null,
+                closeBoxURL: "",
+                infoBoxClearance: new google.maps.Size(1, 1),
+                isHidden: false,
+                isOpen: false,
+                pane: "floatPane",
+                enableEventPropagation: false
+            });
+
+            infobox.addListener('domready', function () {
+                $('.infobox-close').on('click', function () {
+                    infobox.close(map, this);
+                    infobox.isOpen = false;
+                });
+            });
+            $.each(data, function (index, value)
+            {
+                var lat = value.Latitude;
+                var lng = value.Longitude;
+                var markerCenter = new google.maps.LatLng(lat, lng);
+
+                var markerIcon = {
+                        url: '{% static "assets/img/showroom2.png" %}',
+                        scaledSize: new google.maps.Size(35, 35),
+                        origin: new google.maps.Point(0, 0) // used if icon is a part of sprite, indicates image position in sprite
+                    };
+
+                var marker = new google.maps.Marker({
+                        id: value.Userid,
+                        data: value,
+                        position: markerCenter,
+                        map: map,
+                        icon: markerIcon,
+                        title: value.Level1Name
+                    });
+
+                var infowindow = new google.maps.InfoWindow({
+                    content: " ",
+                    maxWidth: 600
+                });
+
+                google.maps.event.addListener(marker, "click", function () {
+                    var c = '<div class="infobox"><div class="infobox-close"><i class="fa fa-close"></i></div>' +
+                        '<h3 class="infobox-title"><a href="listing.html">' + marker.data.Level1Name + '</a></h3>' +
+                        '<h4 class="infobox-address">' + marker.data.UpazilaName + '</h4>' +
+                        '<div class="infobox-content">' +
+                        '<div class="infobox-image" style="background-image: url({% static 'assets/img/SR.jpg' %});"><ul><li><a href="#"><i class="fa fa-facebook"></i></a></li><li><a href="#"><i class="fa fa-twitter"></i></a></li><li><a href="#"><i class="fa fa-google"></i></a></li></ul></div>' +
+                        '<div class="infobox-body"><div class="infobox-body-inner"><div class="infobox-price">MSR</div><div class="infobox-category tag">Location</div>' +
+                            '<p>Updated On:</p>' +
+                            '<p>'+marker.data.Time+'</p>' +
+                        '</div>' +
+                        '<div class="infobox-more"><a href="#"><i class="fa fa-chevron-right"></i></a></div>' +
+                        '</div>' +
+                        '<div>';
+
+                    if (!infobox.isOpen) {
+                        infobox.setContent(c);
+                        infobox.open(map, this);
+                        infobox.isOpen = true;
+                        infobox.markerId = marker.id;
+                    } else {
+                        if (infobox.markerId == marker.id) {
+                            infobox.close(map, this);
+                            infobox.isOpen = false;
+                        } else {
+                            infobox.close(map, this);
+                            infobox.isOpen = false;
+
+                            infobox.setContent(c);
+                            infobox.open(map, this);
+                            infobox.isOpen = true;
+                            infobox.markerId = marker.id;
+                        }
+                    }
+                });
+
+
+            });
+            //console.log("Total Markes in the map: " + markers.length);
+            //console.log(markers);
+        }
+
+
+
+
+    });
+
+</script>
+
+{% endblock %}

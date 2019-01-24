@@ -1,0 +1,438 @@
+{% extends "./public/dashboardBase.html" %}
+{% load static %}
+
+{% block main_content %}
+
+    <div class="map-wrapper">
+        <div class="map" style="height: 680px;">
+            <div class="map-inner">
+                <div class="map-object">
+                    {#  search box on the map #}
+                    <input id="pac-input" class="controls" type="text" placeholder="Enter a location" style="width: 400px;">
+                    <div id="map-object"></div>
+                    {#  search box marker popup content goes here #}
+                    <div id="infowindow-content">
+                        <span id="place-name" class="title"></span><br>
+                        <span id="place-id"></span><br>
+                        <span id="place-address"></span>
+                    </div>
+                    <div class="map-toolbar">
+                        <div class="map-toolbar-group">
+                            <div id="map-toolbar-action-zoom-in" class="map-toolbar-group-item"><i
+                                    class="fa fa-plus"></i></div>
+                            <!-- /.map-toolbar-group-item -->
+                            <div id="map-toolbar-action-zoom-out" class="map-toolbar-group-item"><i
+                                    class="fa fa-minus"></i></div>
+                            <!-- /.map-toolbar-group-item -->
+                        </div>
+                        <!-- /.map-toolbar-group -->
+                        <div class="map-toolbar-group">
+                            <div id="map-toolbar-action-current-position" class="map-toolbar-group-item"><i
+                                    class="fa fa-location-arrow"></i></div>
+                            <!-- /.map-toolbar-group-item -->
+                            <div id="map-toolbar-action-fullscreen" class="map-toolbar-group-item"><i
+                                    class="fa fa-arrows-alt"></i></div>
+                            <!-- /.map-toolbar-group-item -->
+                        </div>
+
+                        <div class="map-toolbar-group">
+                            <div id="reset_map" class="map-toolbar-group-item">Reset</div>
+                        </div>
+                    </div>
+                    <!-- /.map-toolbar -->
+                    <div class="map-filter-wrapper">
+                        <div class="container-fluid">
+
+                        </div>
+                    </div>
+                </div>
+
+
+                <div id="sidebar" class="sidebar collapsed">
+                    <div class="sidebar-tabs">
+                        <ul role="tablist">
+                            <li><a href="#home" role="tab"><i class="fa fa-bars"></i></a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Tab panes -->
+                    <div class="sidebar-content">
+                        <div class="sidebar-pane" id="home">
+                            <h1 class="sidebar-header">
+                                Live Tracking
+                                <span class="sidebar-close"><i class="fa fa-caret-left"></i></span>
+                            </h1>
+                            <div id="live_tracking"></div>
+                        </div>
+                    </div>
+
+
+
+                </div>
+
+            </div>
+            <!-- /.map-inner -->
+        </div>
+        <!-- /.map -->
+    </div>
+
+    <br><br><br><br><br><br>
+    <div class="cta-small">
+        <div class="container">
+            Pharma Field Force Tracking
+        </div>
+    </div>
+
+
+
+<script>
+
+    var markers = [];
+    var circleInfographMarkers = [];
+    var map;
+    var center;
+    var infobox;
+    var DATA_LOAD_ZOOM_LEVEL = 9;
+    var minMapZoomLevel = 7, defaultZoomLevel = 8, liveTrackingMaxZoomLevel = 17;
+    var MILE_TO_METER = 1609.34;
+    $(document).ready(function (){
+
+        var socket = new WebSocket('ws://' + window.location.host + '/MotorMSRGeoTrackingApp/pharmaff_routing');
+        try {
+            socket.onopen = function open() {
+                console.log("Socket connection established successfully.");
+                tweetsCollected = 0;
+                maxid = 0;
+                send("Test Message For Pharma");
+            };
+        }
+        catch (socket) {
+            console.log(socket.onerror);
+        }
+
+        socket.onmessage = function (event)
+        {
+            //receiving data from socket. Loading new data into json_obj array
+            var data = event.data;
+            var rows = data.split('||');
+            var json_obj = [];
+            for(var i=0; i<rows.length; i++)
+            {
+                if(rows[i] !== "")
+                {
+                    var elements = rows[i].split('|');
+                    json_obj.push({'ID': elements[0], 'UserId': elements[1], 'Level1Name': elements[2], 'Latitude': elements[3], 'Longitude': elements[4], 'MaxUpdateTime': elements[5]})
+                }
+            }
+
+            //getting the max_markers = maximum of old markers and new markers
+            var location_modified = [];
+            var max_markers = 0;
+            if(markers.length == json_obj.length)
+                max_markers = json_obj.length;
+            else if(markers.length > json_obj.length)   //This is the case for having less markers than the current markers on map. Means, some MSR turned off their app
+                max_markers = json_obj.length;
+            else if(markers.length < json_obj.length)   //This is the case for new markers came. Higher than old markers
+                max_markers = markers.length;
+
+            for(var i=0; i<max_markers; i++)
+            {
+                var diff = (new Date() - new Date(json_obj[i].MaxUpdateTime).getTime())/1000;
+                if(  (String(markers[i].data.UserId) == json_obj[i].UserId)  &&  (String(markers[i].data.Latitude) != String(json_obj[i].Latitude) || String(markers[i].data.Longitude) != String(json_obj[i].Longitude) || parseFloat(diff) < 60.0) )
+                {
+                    location_modified.push(json_obj[i]);
+                    if(String(markers[i].data.Latitude) != String(json_obj[i].Latitude))
+                    {
+                        var flightPath = new google.maps.Polyline({
+                            path: [{lat: parseFloat(markers[i].data.Latitude), lng: parseFloat(markers[i].data.Longitude)}, {lat: parseFloat(json_obj[i].Latitude), lng: parseFloat(json_obj[i].Longitude)}],
+                            geodesic: true,
+                            strokeColor: 'black',
+                            strokeOpacity: 1.0,
+                            strokeWeight: 2,
+                            map:map
+                        });
+                    }
+                }
+            }
+            if(markers.length < json_obj.length)   //This is the case for new markers came. They just become live
+            {
+                for(var i=markers.length; i<json_obj.length; i++)
+                {
+                    location_modified.push(json_obj[i]);
+                }
+            }
+            console.log(location_modified);
+
+
+            //for(var i=0; i<location_modified.length; i++)
+            //{
+            //    console.log(location_modified[i].UserId + ',' + location_modified[i].Level1Name);
+            //}
+
+            PopulateLatestMSRLocations(json_obj, location_modified);
+            var mydata = String(event.data);
+            if (mydata == "" )
+            {
+                socket.close();
+                console.log("Tweets collected successfully. Socket has been closed.");
+            }
+            else {
+                var topic = '12344'
+                send(String(topic));
+                //$('#set_status').html(String(postsCollected) + " posts collected so far...");
+            }
+
+        };
+
+        function send(msg) {
+            wait_for_socket_connection(socket, function () {
+                console.log("Sending data to server through socket. Content: " + msg);
+                socket.send(msg);
+            });
+        };
+
+        function wait_for_socket_connection(socket, callback) {
+            setTimeout(
+                function () {
+                    if (socket.readyState === 1) {
+                        if (callback !== undefined) {
+                            callback();
+                        }
+                        return;
+
+                    } else
+                    {
+                        console.log("... waiting for web socket connection to come online");
+                        wait_for_socket_connection(socket, callback);
+                    }
+                }, 8000);
+        };
+
+        $("#reset_map").click(function()
+        {
+            map.setCenter(new google.maps.LatLng(mapLatCenter, mapLngCenter));
+            map.panTo(new google.maps.LatLng(mapLatCenter, mapLngCenter));
+            map.setZoom(defaultZoomLevel);
+        });
+
+
+        //Making the map full-screen
+        $('#map-object').css({
+            position: 'absolute',
+            width: $(window).width(),
+            height: $(window).height()-100
+        });
+
+        var data = '{{ Latest_PharmaFF_Locations }}';
+        data = JSON.parse(data.replace(/&quot;/g, '"'));
+        var mapLatCenter = 23.777176;   //Dhaka latitude and longtitude
+        var mapLngCenter = 90.399452;
+        var mapCenter = new google.maps.LatLng(mapLatCenter, mapLngCenter);
+        var zoom = defaultZoomLevel;
+        map = new google.maps.Map(document.getElementById('map-object'), {
+                zoom: zoom,
+                scrollwheel: true,
+                mapTypeControl: true,
+                streetViewControl: true,
+                zoomControl: true,
+                center: mapCenter,
+                scaleControl: true,
+                rotateControl: true,
+                fullscreenControl: true,
+                heading: 90,
+                tilt: 45,
+                mapTypeControlOptions: {
+                    mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain']
+                }
+            });
+
+        var sidebar = $('#sidebar').sidebar();
+
+
+        //pac-input is the search box input for address input
+        var input = document.getElementById('pac-input');
+        var autocomplete = new google.maps.places.Autocomplete(
+            input, { placeIdOnly: true });
+        autocomplete.bindTo('bounds', map);
+        //setting the search box on top left
+        map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
+
+        var infowindow = new google.maps.InfoWindow();
+        var infowindowContent = document.getElementById('infowindow-content');
+        infowindow.setContent(infowindowContent);
+        infowindow.setOptions({ maxWidth: 450 });
+        var geocoder = new google.maps.Geocoder;
+        var marker = new google.maps.Marker({
+            map: map
+        });
+        marker.addListener('click', function () {
+            infowindow.open(map, marker);
+        });
+
+        autocomplete.addListener('place_changed', function () {
+            infowindow.close();
+            var place = autocomplete.getPlace();
+
+            if (!place.place_id) {
+                return;
+            }
+            geocoder.geocode({ 'placeId': place.place_id }, function (results, status) {
+
+                if (status !== 'OK') {
+                    alert('Geocoder failed due to: ' + status);
+                    return;
+                }
+                map.setZoom(11);
+                map.setCenter(results[0].geometry.location);
+                // Set the position of the marker using the place ID and location.
+                marker.setPlace({
+                    placeId: place.place_id,
+                    location: results[0].geometry.location
+                });
+                marker.setVisible(true);
+                infowindowContent.children['place-name'].textContent = place.name;
+                //infowindowContent.children['place-id'].textContent = place.place_id;
+                infowindowContent.children['place-address'].textContent = results[0].formatted_address;
+                infowindow.open(map, marker);
+            });
+        });
+
+        PopulateLatestMSRLocations(data, []);
+
+        function PopulateLatestMSRLocations(data, location_updated)
+        {
+            console.log("Populating MSR Location Layer: total data found = " + data.length + ', Modified Data total = ' + location_updated.length);
+            ToggleMarkerGoup(markers, null);
+            markers = [];
+
+            for(var k=0; k<data.length; k++)
+            {
+                var value = data[k];
+                var lat = value.Latitude;
+                var lng = value.Longitude;
+                var markerCenter = new google.maps.LatLng(lat, lng);
+                var markerIcon;
+                if(location_updated.length === 0)
+                {
+                    markerIcon = {
+                        url: '{% static "assets/img/source_bike.png" %}',
+                        scaledSize: new google.maps.Size(35, 35),
+                        origin: new google.maps.Point(0, 0) // used if icon is a part of sprite, indicates image position in sprite
+                    };
+                    var marker = new google.maps.Marker({
+                        id: value.UserId,
+                        data: value,
+                        position: markerCenter,
+                        map: map,
+                        icon: markerIcon,
+                        //label: value.UserId + ' - ' + value.Level1Name,
+                        title: value.UserId + ':' + value.Level1Name
+                    });
+                    markers.push(marker);
+                }
+                else
+                {
+                    var isPlotted = false;
+                    for(var j=0; j<location_updated.length; j++)
+                    {
+                        if(value.UserId === location_updated[j].UserId)
+                        {
+                            value = location_updated[j];
+                            markerCenter = new google.maps.LatLng(location_updated[j].Latitude, location_updated[j].Longitude);
+                            markerIcon = {
+                                url: '{% static "assets/img/MapPin_Active.png" %}',
+                                //scaledSize: new google.maps.Size(35, 35),
+                                origin: new google.maps.Point(0, 0) // used if icon is a part of sprite, indicates image position in sprite
+                            };
+                            //console.log('Updated UserId: ' + value.UserId + ', Username' + value.Level1Name);
+                            //console.log(value);
+                            var live_path_tracking = '<p>MSR:' + value.UserId + ', Last Updated: ' + value.MaxUpdateTime + '</p>';
+                            $("#live_tracking").append(live_path_tracking);
+                            var marker = new google.maps.Marker({
+                                id: location_updated[j].UserId,
+                                data: location_updated[j],
+                                position: markerCenter,
+                                map: map,
+                                icon: markerIcon,
+                                //label: location_updated[j].UserId + ' - ' + location_updated[j].Level1Name,
+                                label:{
+                                    text: location_updated[j].UserId,
+                                    color: 'whire',
+                                    fontSize: "11px"
+                                },
+                                title: location_updated[j].Level1Name
+                            });
+                            markers.push(marker);
+                            isPlotted = true;
+                            //check to set center for that marker only which is zoomed now:
+                            if(map.getZoom() >= liveTrackingMaxZoomLevel)
+                            {
+                                var lat0 = map.getBounds().getNorthEast().lat();
+                                var lng0 = map.getBounds().getNorthEast().lng();
+                                var lat1 = map.getBounds().getSouthWest().lat();
+                                var lng1 = map.getBounds().getSouthWest().lng();
+                                if(location_updated[j].Latitude <= lat0 && location_updated[j].Latitude >= lat1 && location_updated[j].Longitude <= lng0 && location_updated[j].Longitude >= lng1)
+                                {
+                                    map.panTo(new google.maps.LatLng(parseFloat(location_updated[j].Latitude), parseFloat(location_updated[j].Longitude)));
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    if(!isPlotted)
+                    {
+                        markerIcon = {
+                            url: '{% static "assets/img/source_bike.png" %}',
+                            scaledSize: new google.maps.Size(35, 35),
+                            origin: new google.maps.Point(0, 0)
+                        };
+                        var marker = new google.maps.Marker({
+                            id: value.UserId,
+                            data: value,
+                            position: markerCenter,
+                            map: map,
+                            icon: markerIcon,
+                            //label: value.UserId + ' - ' + value.Level1Name,
+                            title: value.UserId + ':' + value.Level1Name
+                        });
+                        markers.push(marker);
+                    }
+                }
+
+            }
+
+            for(var i=0; i<markers.length; i++)
+            {
+                var marker = markers[i];
+                google.maps.event.addListener(marker, 'click', (function(marker, i) {
+                  return function() {
+                        map.setCenter(new google.maps.LatLng(marker.data.Latitude, marker.data.Longitude));
+                        map.panTo(new google.maps.LatLng(marker.data.Latitude, marker.data.Longitude));
+                        map.setZoom(liveTrackingMaxZoomLevel);
+                  }
+                })(marker, i));
+            }
+
+
+            markers.forEach(function(marker){
+              // Set up a click event listener for each marker in the array
+                  marker.addListener('click', function() {
+                      //map.setCenter({lat: lati, lng: longi});
+                      map.panTo(new google.maps.LatLng(marker.data.Latitude, marker.data.Longitude));
+                  });
+            });
+        }
+
+        function ToggleMarkerGoup(markerGroup, val)
+        {
+            for (var i = 0; i < markerGroup.length; i++) {
+                markerGroup[i].setMap(val);
+            }
+        }
+
+
+    });
+
+</script>
+
+{% endblock %}

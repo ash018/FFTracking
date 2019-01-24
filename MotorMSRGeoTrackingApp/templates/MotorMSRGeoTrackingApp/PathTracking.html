@@ -1,0 +1,488 @@
+{% extends "./public/dashboardBase.html" %}
+{% load static %}
+
+{% block main_content %}
+
+
+    <div class="map-wrapper">
+        <div class="map" style="height: 680px;">
+            <div class="map-inner">
+                <div class="map-object">
+                    {#  search box on the map #}
+                    <input id="pac-input" class="controls" type="text" placeholder="Enter a location" style="width: 400px;">
+                    <div id="map-object"></div>
+                    {#  search box marker popup content goes here #}
+                    <div id="infowindow-content">
+                        <span id="place-name" class="title"></span><br>
+                        <span id="place-id"></span><br>
+                        <span id="place-address"></span>
+                    </div>
+                    <div class="map-toolbar">
+                        <div class="map-toolbar-group">
+                            <div id="zoom_value" class="map-toolbar-group-item">Zoom: </div>
+                            <div id="map-toolbar-action-zoom-in" class="map-toolbar-group-item"><i class="fa fa-plus"></i></div>
+                            <div id="map-toolbar-action-zoom-out" class="map-toolbar-group-item"><i class="fa fa-minus"></i></div>
+                        </div>
+                        <div class="map-toolbar-group">
+                            <div id="map-toolbar-action-current-position" class="map-toolbar-group-item"><i class="fa fa-location-arrow"></i></div>
+                            <div id="map-toolbar-action-fullscreen" class="map-toolbar-group-item"><i class="fa fa-arrows-alt"></i></div>
+                        </div>
+                        <div class="map-toolbar-group">
+                            <div id="map-toolbar-action-roadmap" class="map-toolbar-group-item">Roadmap</div>
+                            <div id="map-toolbar-action-satellite" class="map-toolbar-group-item">Satellite</div>
+                            <div id="map-toolbar-action-terrain" class="map-toolbar-group-item">Terrain</div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div id="sidebar" class="sidebar collapsed">
+                    <div class="sidebar-tabs">
+                        <ul role="tablist">
+                            <li><a href="#home" role="tab"><i class="fa fa-bars"></i></a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Tab panes -->
+                    <div class="sidebar-content">
+                        <div class="sidebar-pane" id="home">
+                            <h1 class="sidebar-header">
+                                Control Options
+                                <span class="sidebar-close"><i class="fa fa-caret-left"></i></span>
+                            </h1>
+
+                            <p>Filter Map:</p>
+
+                            <p>
+{#                                <div class="form-group">#}
+{#                                      <label>MSR Code</label>#}
+{#                                      <input type="text" class="form-control" id="msr_code" value="{{ Selected_Msr }}">#}
+{#                                </div>#}
+                                <select class="form-control" name="msr_selected" id="msr_selected">
+                                    {% for item in Msr_Codes_Dropdown_Data %}
+                                        <option value="{{ item.Userid }}">{{ item.Userid }}-{{ item.Level1Name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </p>
+
+                            <p>
+                                <div class="form-group">
+                                      <label>Date Range:</label>
+                                      <div id="reportrange" class="form-control">
+                                            <i class="fa fa-calendar"></i>&nbsp;
+                                        <span></span> <i class="fa fa-caret-down"></i>
+                                    </div>
+                                </div>
+                            </p>
+
+                            <p>
+                                <div class="clearfix">
+                                    <button class="btn btn-primary pull-right" id="refresh_map">Refresh</button>
+                                </div>
+                            </p>
+
+                            <div id="path_legend"></div>
+
+
+
+
+
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div id="mapLoader">
+        <img src="{% static "assets/img/map_loading.gif"%}" width="25%" style="margin-left: 30%;" />
+        <br>
+        <h4 style="color: black; font-size: 9px;">Data loading. Please wait.</h4>
+    </div>
+
+    <br><br><br><br><br><br>
+    <div class="cta-small">
+        <div class="container">
+            MSR path tracking.
+        </div>
+    </div>
+
+
+
+
+
+
+<script>
+
+    var pathMarkers = [], pathSourceMarkers = [], pathDestinationMarkers=[];
+    var circleInfographMarkers = [];
+    var map;
+    var center;
+    var infobox;
+    var flightPath;
+    var DATA_LOAD_ZOOM_LEVEL = 10;
+    var minMapZoomLevel = 7, defaultZoomLevel = 11;
+    var MILE_TO_METER = 1609.34;
+    var colorCodeList = ["orange.png","pink.png","purple.png","yellow.png","lightblue.png","green.png","red.png","blue.png","orange.png","pink.png","purple.png","yellow.png","lightblue.png","pink.png","purple.png"]
+    $(document).ready(function ()
+    {
+        var start = moment().subtract(14, 'days');
+        var end = moment();
+
+        $('#reportrange').daterangepicker({
+            startDate: start,
+            endDate: end,
+            ranges: {
+                'Today': [moment(), moment()],
+                'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+                'Last 3 Days': [moment().subtract(2, 'days'), moment()],
+                'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+                'This Month': [moment().startOf('month'), moment().endOf('month')],
+                'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+            }
+        }, GetDateRange);
+
+        GetDateRange(start, end);
+
+        //Making the map full-screen
+        $('#map-object').css({
+            position: 'absolute',
+            width: $(window).width(),
+            height: $(window).height()-100
+        });
+        $("#mapLoader").hide();
+        var sidebar = $('#sidebar').sidebar();
+
+        var data = '{{ MSR_Movements }}';
+        data = JSON.parse(data.replace(/&quot;/g, '"'));
+        if(data.length == 0)
+        {
+            new Noty({
+                theme: 'metroui',
+                closeWith: ['click', 'button'],
+                timeout: 10000,
+                type: 'success',
+                layout: 'topRight',
+                text: 'Sorry, no data found for this MSR.',
+            }).show();
+        }
+        var mapLatCenter = {{ Center_Latitude }};
+        var mapLngCenter = {{ Center_Longitude }};
+        var mapCenter = new google.maps.LatLng(mapLatCenter, mapLngCenter);
+        var zoom = defaultZoomLevel;
+        map = new google.maps.Map(document.getElementById('map-object'), {
+            zoom: zoom,
+            scrollwheel: true,
+            mapTypeControl: true,
+            streetViewControl: true,
+            zoomControl: true,
+            center: mapCenter,
+            scaleControl: true,
+            rotateControl: true,
+            fullscreenControl: true,
+            heading: 90,
+            tilt: 45,
+            mapTypeControlOptions: {
+                mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain']
+            }
+        });
+
+        //pac-input is the search box input for address input
+        var input = document.getElementById('pac-input');
+        var autocomplete = new google.maps.places.Autocomplete(
+            input, { placeIdOnly: true });
+        autocomplete.bindTo('bounds', map);
+        //setting the search box on top left
+        map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
+
+        var infowindow = new google.maps.InfoWindow();
+        var infowindowContent = document.getElementById('infowindow-content');
+        infowindow.setContent(infowindowContent);
+        infowindow.setOptions({ maxWidth: 450 });
+        var geocoder = new google.maps.Geocoder;
+        var marker = new google.maps.Marker({
+            map: map
+        });
+        marker.addListener('click', function () {
+            infowindow.open(map, marker);
+        });
+
+
+        autocomplete.addListener('place_changed', function () {
+            infowindow.close();
+            var place = autocomplete.getPlace();
+
+            if (!place.place_id) {
+                return;
+            }
+            geocoder.geocode({ 'placeId': place.place_id }, function (results, status) {
+
+                if (status !== 'OK') {
+                    alert('Geocoder failed due to: ' + status);
+                    return;
+                }
+                map.setZoom(11);
+                map.setCenter(results[0].geometry.location);
+                // Set the position of the marker using the place ID and location.
+                marker.setPlace({
+                    placeId: place.place_id,
+                    location: results[0].geometry.location
+                });
+                marker.setVisible(true);
+                infowindowContent.children['place-name'].textContent = place.name;
+                //infowindowContent.children['place-id'].textContent = place.place_id;
+                infowindowContent.children['place-address'].textContent = results[0].formatted_address;
+                infowindow.open(map, marker);
+            });
+        });
+
+        $("#zoom_value").html("Zoom: " + map.getZoom());
+
+        if(data.length != 0)
+            PopulateMSRPath(data);
+
+        function PopulateMSRPath(data)
+        {
+            console.log("Populating location tracking. Total data point found = " + data.length);
+            ToggleMarkerGoup(pathMarkers, null);
+            ToggleMarkerGoup(pathSourceMarkers, null);
+            ToggleMarkerGoup(pathDestinationMarkers, null);
+            pathMarkers = [];
+            pathSourceMarkers = [];
+            pathDestinationMarkers = [];
+            var count = 0;
+            var colorCodeCounter = 0;
+            var distinctDates = [];
+            var path_sources = [];
+            var path_destinations = [];
+            var marker;
+            var msrPathCoordinates = [];
+            for(var i=0; i<data.length; i++)
+            {
+                var value = data[i];
+                var lat = value.Latitude;
+                var lng = value.Longitude;
+                var markerCenter = new google.maps.LatLng(lat, lng);
+                //console.log(i+1 == data.length ? 0:i+1);
+                //console.log(data[i].ServerTime.substring(0, 10) + '--' +  data[i+1 == data.length ? 0:i+1].ServerTime.substring(0, 10));
+                if(i == 0)     //for start case, draw a source marker
+                {
+                    colorCode = colorCodeList[0];
+                    distinctDates.push(data[i].ServerTime.substring(0, 10));
+                    path_sources.push(value);
+                }
+                else if(data[i].ServerTime.substring(0, 10) !== data[i-1].ServerTime.substring(0, 10))
+                {
+                    colorCodeCounter+=1;
+                    colorCode = colorCodeList[colorCodeCounter];
+                    distinctDates.push(data[i].ServerTime.substring(0, 10));
+                    path_sources.push(value);
+                    //drawing a line connecting the markers, because here a date change occurs
+                    msrPathCoordinates.push({lat: lat, lng: lng});
+                }
+                else if(data[i].ServerTime.substring(0, 10) != data[i+1 == data.length ? 0:i+1].ServerTime.substring(0, 10))
+                {
+                    console.log('DEST');
+                    path_destinations.push(value);
+                    msrPathCoordinates.push({lat: lat, lng: lng});
+                }
+
+                if(i%10==0)  //drawing once a 10 markers
+                {
+                    var url = '{% static "assets/img/color.png" %}';
+                    url = url.replace('color.png', colorCode);
+                    var markerIcon = {
+                        url: url,
+                        scaledSize: new google.maps.Size(18, 18)
+                    };
+                    var marker = new google.maps.Marker({
+                        id: value.Userid,
+                        data: value,
+                        map: map,
+                        position: {'lat': lat, 'lng': lng},
+                        icon: markerIcon,
+                        title: 'Source for ' + value.Userid + ' on ' + value.ServerTime.substring(0, 10)
+                    });
+                }
+
+                msrPathCoordinates.push({lat: lat, lng: lng});
+                pathMarkers.push(marker);
+            }
+
+
+            //if data is available for only 1 day, then insert last date as destination
+            if(path_destinations.length == 0)
+            {
+                path_destinations.push(data[data.length - 1]);
+                //drawing once 1 line since onle 1 day data found for this scenario
+                msrPathCoordinates.push({lat: data[data.length - 1].Latitude, lng: data[data.length - 1].Longitude});
+            }
+
+            //adding a legend on sidebar to show which colors are userd for which date
+            $("#path_legend").html("");
+            var html_legend = "";
+            for(var i=0; i<=colorCodeCounter; i++)
+            {
+                html_legend +=   '<p>' + distinctDates[i] + '&nbsp;&nbsp; <svg width="25" height="15">' +
+                    '  <rect width="25" height="15" style="fill:' + colorCodeList[i].replace('.png', '') + ';stroke-width:0;stroke:rgb(0,0,0)" />' +
+                    '  Sorry, your browser does not support inline SVG. ' +
+                    '</svg></p>';
+            }
+            $("#path_legend").html(html_legend);
+
+            //adding source and destination markers for each date range
+            var infowindow = [];
+            for(var i=0; i<path_sources.length; i++)
+            {
+                var infowindow = new google.maps.InfoWindow({
+                    content: ""
+                });
+
+                var markerIcon = {
+                    url: '{% static "assets/img/red-blank.png" %}',
+                    scaledSize: new google.maps.Size(35, 35)
+                    //origin: new google.maps.Point(0, 0)
+                };
+                var marker = new google.maps.Marker({
+                    id: path_sources[i].Userid,
+                    data: path_sources[i],
+                    position: {'lat': path_sources[i].Latitude, 'lng': path_sources[i].Longitude },
+                    map: map,
+                    icon: markerIcon,
+                    label: String(i),
+                    title: 'Source for ' + path_sources[i].Userid + ' on ' + path_sources[i].ServerTime.substring(0, 10)
+                });
+                pathSourceMarkers.push(marker);
+
+                google.maps.event.addListener(marker,'click',(function(marker,i)
+                {
+                    return function(){
+                        var contentString = '<div id="content">' +
+                            '<div id="siteNotice">' +
+                            '</div>' +
+                            '<h2 id="firstHeading" class="firstHeading">'+ path_sources[i].ServerTime.substring(0, 10)+'</h2>' +
+                            '<div id="bodyContent"><p>Source Marker</p><p>UserId: '+ path_sources[i].Userid +'</p></div>' +
+                        '</div>';
+                        infowindow.setContent(contentString);
+                        infowindow.open(map, marker);
+                    }
+                })(marker,i));
+            }
+
+            for(var i=0; i<path_destinations.length; i++)
+            {
+                var infowindow = new google.maps.InfoWindow({
+                    content: ""
+                });
+                var markerIcon = {
+                    url: '{% static "assets/img/yellow.png" %}',
+                    scaledSize: new google.maps.Size(40, 40),
+                    origin: new google.maps.Point(0, 0)
+                };
+                var  marker = new google.maps.Marker({
+                    id: path_destinations[i].Userid,
+                    data: path_destinations[i],
+                    position: {'lat': path_destinations[i].Latitude, 'lng': path_destinations[i].Longitude },
+                    map: map,
+                    icon: markerIcon,
+                    label: String(i),
+                    title: 'Destination for ' + path_destinations[i].Userid + ' on ' + path_destinations[i].ServerTime.substring(0, 10)
+                });
+                pathDestinationMarkers.push(marker);
+                google.maps.event.addListener(marker,'click',(function(marker,i)
+                {
+                    return function(){
+                        var contentString = '<div id="content">' +
+                            '<div id="siteNotice">' +
+                            '</div>' +
+                            '<h2 id="firstHeading" class="firstHeading">'+ path_destinations[i].ServerTime.substring(0, 10)+'</h2>' +
+                            '<div id="bodyContent"><p>Destination Marker</p><p>UserId: '+ path_destinations[i].Userid +'</p></div>' +
+                        '</div>';
+                        infowindow.setContent(contentString);
+                        infowindow.open(map, marker);
+                    }
+                })(marker,i));
+            }
+            //Drawing a line by connecting the points
+            flightPath = new google.maps.Polyline({
+                path: msrPathCoordinates,
+                geodesic: true,
+                strokeColor: String(colorCodeList[0].replace('.png', '')),
+                strokeOpacity: 1.0,
+                strokeWeight: 3,
+                map:map
+            });
+        }
+
+        function ToggleMarkerGoup(markerGroup, val)
+        {
+            for (var i = 0; i < markerGroup.length; i++) {
+                markerGroup[i].setMap(val);
+            }
+        }
+
+        function getRandomArbitrary(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+
+        $("#refresh_map").click(function()
+        {
+            $("#mapLoader").show();
+            var msr_code = $("#msr_code").val();
+            if(msr_code === "")
+            {
+                alert('Please select a MSR code first.');
+                return false
+            }
+            var daterange = $('#reportrange span').html();
+            $.ajax({
+                type: 'GET',
+                url: '{% url 'GetMSRPath' %}',
+                data: { FromDate: daterange.split(" to ")[0], ToDate: daterange.split(" to ")[1], MSRCode: $("#msr_selected").val()},
+                dataType: "json",
+                success: function (result)
+                {
+                    if(result.data.length == 0)
+                    {
+                        alert('No data found.');
+                    }
+                    else
+                    {
+                        var lati = parseFloat(result.Center_Latitude);
+                        var longi = parseFloat(result.Center_Longitude);
+
+                        map.setCenter(new google.maps.LatLng(lati, longi));
+                        map.panTo(new google.maps.LatLng(lati, longi));
+                        map.setZoom(DATA_LOAD_ZOOM_LEVEL);
+
+                        $("#zoom_value").html("Zoom: " + map.getZoom());
+                        flightPath.setMap(null);    //removing all the polylines from the map
+                        PopulateMSRPath(result.data);
+                    }
+                    $("#mapLoader").hide();
+                },
+                error: function () { alert('Error occued. Please contact administrator.'); }
+            });
+
+
+        });
+
+        function GetDateRange(st, ed) {
+            $('#reportrange span').html(st.format('YYYY-MM-DD') + ' to ' + ed.format('YYYY-MM-DD'));
+            start = st;
+            end = ed;
+
+        }
+
+
+    });
+
+</script>
+
+{% endblock %}

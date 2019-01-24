@@ -1,0 +1,500 @@
+{% extends "./public/dashboardBase.html" %}
+{% load static %}
+
+{% block main_content %}
+
+    <div class="map-wrapper">
+        <div class="map" style="height: 680px;">
+            <div class="map-inner">
+
+                <div class="map-object">
+                    {#  search box on the map #}
+                    <input id="pac-input" class="controls" type="text" placeholder="Enter a location" style="width: 400px;">
+                    <div id="map-object" class="sidebar-map"></div>
+                    {#  search box marker popup content goes here #}
+                    <div id="infowindow-content">
+                        <span id="place-name" class="title"></span><br>
+                        <span id="place-id"></span><br>
+                        <span id="place-address"></span>
+                    </div>
+                    <div class="map-toolbar">
+                        <div class="map-toolbar-group">
+                            <div id="zoom_value" class="map-toolbar-group-item">Zoom: </div>
+                            <div id="map-toolbar-action-zoom-in" class="map-toolbar-group-item"><i class="fa fa-plus"></i></div>
+                            <div id="map-toolbar-action-zoom-out" class="map-toolbar-group-item"><i class="fa fa-minus"></i></div>
+                        </div>
+                        <!-- /.map-toolbar-group -->
+                        <div class="map-toolbar-group">
+                            <div id="map-toolbar-action-current-position" class="map-toolbar-group-item"><i
+                                    class="fa fa-location-arrow"></i></div>
+                            <!-- /.map-toolbar-group-item -->
+                            <div id="map-toolbar-action-fullscreen" class="map-toolbar-group-item"><i
+                                    class="fa fa-arrows-alt"></i></div>
+                            <!-- /.map-toolbar-group-item -->
+                        </div>
+                        <!-- /.map-toolbar-group -->
+                        <div class="map-toolbar-group">
+                            <div id="map-toolbar-action-roadmap" class="map-toolbar-group-item">Roadmap</div>
+                            <!-- /.map-toolbar-group-item -->
+                            <div id="map-toolbar-action-satellite" class="map-toolbar-group-item">Satellite</div>
+                            <!-- /.map-toolbar-group-item -->
+                            <div id="map-toolbar-action-terrain" class="map-toolbar-group-item">Terrain</div>
+                            <!-- /.map-toolbar-group-item -->
+                        </div>
+                        <!-- /.map-toolbar-group -->
+                    </div>
+                    <!-- /.map-toolbar -->
+                    <div class="map-filter-wrapper">
+                        <div class="container-fluid">
+
+                        </div>
+                        <!-- /.container -->
+                    </div>
+                    <!-- /.map-filter-wrapper -->
+                </div>
+
+                <div id="sidebar" class="sidebar collapsed">
+                    <div class="sidebar-tabs">
+                        <ul role="tablist">
+                            <li><a href="#home" role="tab"><i class="fa fa-bars"></i></a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Tab panes -->
+                    <div class="sidebar-content">
+                        <div class="sidebar-pane" id="home">
+                            <h1 class="sidebar-header">
+                                Control Options
+                                <span class="sidebar-close"><i class="fa fa-caret-left"></i></span>
+                            </h1>
+
+                            <p>Menu:</p>
+
+                            <ul>
+                                <li><a href="#">Home</a></li>
+                                <li><a href="#">Home</a></li>
+                                <li><a href="#">Home</a></li>
+                            </ul>
+
+                            <p class="lorem">
+                                Turnon Traffic Layer:
+                                <button type="button" id="traffic_layer_control" class="btn btn-xs btn-secondary btn-toggle inactive" data-toggle="button" aria-pressed="true" autocomplete="off">
+                                    <div class="handle"></div>
+                                </button>
+                            </p>
+
+                            <p class="lorem">
+                                Remove Coverage Markers:
+                                <button type="button" id="coverage_layer_control" class="btn btn-xs btn-secondary btn-toggle active" data-toggle="button" aria-pressed="true" autocomplete="off">
+                                    <div class="handle"></div>
+                                </button>
+                            </p>
+
+                            <div id="logger"></div>
+
+                        </div>
+
+                    </div>
+                </div>
+
+
+
+
+            </div>
+            <!-- /.map-inner -->
+        </div>
+        <!-- /.map -->
+    </div>
+    <!-- /.map-wrapper -->
+
+     <div id="mapLoader">
+        <img src="{% static "assets/img/map_loading.gif"%}" width="25%" style="margin-left: 30%;" />
+        <br>
+        <h4 style="color: black; font-size: 9px;">Data loading. Please wait.</h4>
+    </div>
+
+    <br><br><br><br><br><br>
+    <div class="cta-small">
+        <div class="container">
+            Brick field, dealer, and showroom location with measurement analysis.
+        </div>
+    </div>
+
+
+
+
+<script>
+
+    var markers = [];
+    var circleInfographMarkers = [];
+    var map;
+    var center;
+    var infobox;
+    var DATA_LOAD_ZOOM_LEVEL = 5;
+    var minMapZoomLevel = 7, defaultZoomLevel = 8;
+    var MILE_TO_METER = 1609.34;
+    var STATE_TrafficLayer = 0, STATE_CoverageLayer = 1;
+    var MILE_TO_METER = 1609.34;
+    $(document).ready(function ()
+    {
+        //Making the map full-screen
+        $('#map-object').css({
+            position: 'absolute',
+            width: $(window).width(),
+            height: $(window).height()-100
+        });
+
+        $("#mapLoader").hide();
+        var sidebar = $('#sidebar').sidebar();
+
+        var markers = [];
+        var data = '{{ Current_Place_Locations }}';
+        data = JSON.parse(data.replace(/&quot;/g, '"'));
+        var mapLatCenter = {{ Center_Latitude }};
+        var mapLngCenter = {{ Center_Longitude }};
+        var mapCenter = new google.maps.LatLng(mapLatCenter, mapLngCenter);
+        var zoom = defaultZoomLevel;
+        map = new google.maps.Map(document.getElementById('map-object'), {
+                zoom: zoom,
+                scrollwheel: true,
+                mapTypeControl: true,
+                streetViewControl: true,
+                zoomControl: true,
+                center: mapCenter,
+                scaleControl: true,
+                rotateControl: true,
+                fullscreenControl: true,
+                heading: 90,
+                tilt: 45,
+                //mapTypeId: google.maps.MapTypeId.ROADMAP,
+                mapTypeControlOptions: {
+                    mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain']
+                }
+            });
+        //adding a traffic layer control
+        var trafficLayer = new google.maps.TrafficLayer();
+
+        //adding measure tool; right click on map to start measuring area on the map
+        measureTool = new MeasureTool(map, {
+            unit: MeasureTool.UnitTypeId.IMPERIAL
+        });
+
+
+        //pac-input is the search box input for address input
+        var input = document.getElementById('pac-input');
+        var autocomplete = new google.maps.places.Autocomplete(
+            input, { placeIdOnly: true });
+        autocomplete.bindTo('bounds', map);
+        //setting the search box on top left
+        map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
+
+        var infowindow = new google.maps.InfoWindow();
+        var infowindowContent = document.getElementById('infowindow-content');
+        infowindow.setContent(infowindowContent);
+        infowindow.setOptions({ maxWidth: 450 });
+        var geocoder = new google.maps.Geocoder;
+        var marker = new google.maps.Marker({
+            map: map
+        });
+        marker.addListener('click', function () {
+            infowindow.open(map, marker);
+        });
+
+        //search on map functionality
+        autocomplete.addListener('place_changed', function () {
+            infowindow.close();
+            var place = autocomplete.getPlace();
+
+            if (!place.place_id) {
+                return;
+            }
+            geocoder.geocode({ 'placeId': place.place_id }, function (results, status) {
+
+                if (status !== 'OK') {
+                    alert('Geocoder failed due to: ' + status);
+                    return;
+                }
+                map.setZoom(defaultZoomLevel);
+                map.setCenter(results[0].geometry.location);
+                // Set the position of the marker using the place ID and location.
+                marker.setPlace({
+                    placeId: place.place_id,
+                    location: results[0].geometry.location
+                });
+                marker.setVisible(true);
+                infowindowContent.children['place-name'].textContent = place.name;
+                //infowindowContent.children['place-id'].textContent = place.place_id;
+                infowindowContent.children['place-address'].textContent = results[0].formatted_address;
+                infowindow.open(map, marker);
+            });
+        });
+
+        //marker loading on map
+        PopulateMSRCurrentLocations(data);
+        PopulateCircleCoverageMarkers(data);
+
+        function PopulateMSRCurrentLocations(data)
+        {
+            console.log("Populating MSR Location Layer: total data found = " + data.length);
+            ToggleMarkerGoup(markers, null);
+            var infobox = new InfoBox({
+                content: 'empty',
+                disableAutoPan: false,
+                maxWidth: 0,
+                pixelOffset: new google.maps.Size(-250, -310),
+                zIndex: null,
+                closeBoxURL: "",
+                infoBoxClearance: new google.maps.Size(1, 1),
+                isHidden: false,
+                isOpen: false,
+                pane: "floatPane",
+                enableEventPropagation: false
+            });
+
+            infobox.addListener('domready', function () {
+                $('.infobox-close').on('click', function () {
+                    infobox.close(map, this);
+                    infobox.isOpen = false;
+                });
+            });
+            $.each(data, function (index, value)
+            {
+                var lat = value.Latitude;
+                var lng = value.Longitude;
+                var markerCenter = new google.maps.LatLng(lat, lng);
+                var type = ''
+                if(value.PlaceType === 'D')
+                {
+                    var markerIcon = {
+                        url: '{% static "assets/img/bike3.png" %}',
+                        scaledSize: new google.maps.Size(14, 30),
+                        origin: new google.maps.Point(0, 0) // used if icon is a part of sprite, indicates image position in sprite
+                    };
+                    type = 'Dealer';
+                }
+                else if(value.PlaceType === 'B')
+                {
+                    var markerIcon = {
+                        url: '{% static "assets/img/brick_field.png" %}',
+                        scaledSize: new google.maps.Size(22, 35),
+                        origin: new google.maps.Point(0, 0) // used if icon is a part of sprite, indicates image position in sprite
+                    };
+                    type = 'Brick Field';
+                }
+                else {
+                    var markerIcon = {
+                        url: '{% static "assets/img/yamaha_marker.png" %}',
+                        //scaledSize: new google.maps.Size(20, 20),
+                        origin: new google.maps.Point(0, 0) // used if icon is a part of sprite, indicates image position in sprite
+                    };
+                    type = 'Show Room';
+                }
+
+                var marker = new google.maps.Marker({
+                        id: value.Userid,
+                        data: value,
+                        position: markerCenter,
+                        map: map,
+                        icon: markerIcon,
+                        title: value.Level1Name
+                    });
+
+                var infowindow = new google.maps.InfoWindow({
+                    content: " ",
+                    maxWidth: 600
+                });
+
+                google.maps.event.addListener(marker, "click", function () {
+                    var c = '<div class="infobox"><div class="infobox-close"><i class="fa fa-close"></i></div>' +
+                        '<h3 class="infobox-title"><a href="listing.html">' + marker.data.Level1Name + '</a></h3>' +
+                        '<h4 class="infobox-address"> Upazilla </h4>' +
+                        '<div class="infobox-content">' +
+                        '<div class="infobox-image" style="background-image: url({% static 'assets/img/SR.jpg' %});"><ul><li><a href="#"><i class="fa fa-facebook"></i></a></li><li><a href="#"><i class="fa fa-twitter"></i></a></li><li><a href="#"><i class="fa fa-google"></i></a></li></ul></div>' +
+                        '<div class="infobox-body"><div class="infobox-body-inner"><div class="infobox-price">Type</div><div class="infobox-category tag">' + type + '</div>' +
+                            '<p>Updated On:</p>' +
+                            '<p>'+marker.data.EntryDate+'</p>' +
+                        '</div>' +
+                        '<div class="infobox-more"><a href="#"><i class="fa fa-chevron-right"></i></a></div>' +
+                        '</div>' +
+                        '<div>';
+
+                    if (!infobox.isOpen) {
+                        infobox.setContent(c);
+                        infobox.open(map, this);
+                        infobox.isOpen = true;
+                        infobox.markerId = marker.id;
+                    } else {
+                        if (infobox.markerId == marker.id) {
+                            infobox.close(map, this);
+                            infobox.isOpen = false;
+                        } else {
+                            infobox.close(map, this);
+                            infobox.isOpen = false;
+
+                            infobox.setContent(c);
+                            infobox.open(map, this);
+                            infobox.isOpen = true;
+                            infobox.markerId = marker.id;
+                        }
+                    }
+                });
+
+                markers.push(marker);
+
+            });
+        }
+
+
+        function PopulateCircleCoverageMarkers(data)
+        {
+            ToggleMarkerGoup(circleInfographMarkers, null);
+            $.each(data, function (index, value)
+            {
+                if(value.PlaceType === 'D')
+                {
+                    var circle1 = new google.maps.Circle({
+                        strokeColor: "#F64F5C",
+                        strokeOpacity: 0.8,
+                        strokeWeight: 2,
+                        fillColor: "#F8727D",
+                        fillOpacity: 0.2,
+                        draggable: false,
+                        editable: true,
+                        map: map,
+                        data: value,
+                        center: {lat: value.Latitude, lng: value.Longitude},
+                        radius: value.Coverage1 *  MILE_TO_METER
+                    });
+
+                    //var circle2 = new google.maps.Circle({
+                        {#strokeColor: "#FF0000",#}
+                        {#strokeOpacity: 0.5,#}
+                        {#strokeWeight: 2,#}
+                        {#fillColor: "#FF0000",#}
+                        {#fillOpacity: 0.08,#}
+                        {#editable: false,#}
+                        {#map: map,#}
+                        {#center: {lat: value.Latitude, lng: value.Longitude},#}
+                        {#radius: value.Coverage2 * 2 * MILE_TO_METER#}
+                    //});
+
+                    //var circle3 = new google.maps.Circle({
+                        {#strokeColor: "#FF0000",#}
+                        {#strokeOpacity: 0.5,#}
+                        {#strokeWeight: 2,#}
+                        {#fillColor: "#FF0000",#}
+                        {#fillOpacity: 0.06,#}
+                        {#editable: true,#}
+                        {#map: map,#}
+                        {#center: {lat: value.Latitude, lng: value.Longitude},#}
+                        {#radius: value.Coverage3 * 2 * MILE_TO_METER#}
+                    //});
+
+                    circleInfographMarkers.push(circle1);
+                    //circleInfographMarkers.push(circle2);
+                    //circleInfographMarkers.push(circle3);
+
+                    {#google.maps.event.addListener(circle1,'circlecomplete', function(circle){#}
+                    {#     radius = circle.getRadius();#}
+                    {#     console.log(radius);#}
+
+                    //});
+
+                     circle1.addListener('radius_changed', function(e){
+                         console.log(circle1.getRadius());
+                         console.log(circle1.data);
+                         var logger = '<p>UserId: ' + circle1.data.UserId + ', Radius: ' + parseFloat(circle1.getRadius() / MILE_TO_METER).toFixed(3)  + ' mi</p>';
+                         $("#logger").append(logger);
+                     });
+                }
+
+            });
+        }
+
+        function ToggleMarkerGoup(markerGroup, val)
+        {
+            for (var i = 0; i < markerGroup.length; i++) {
+                markerGroup[i].setMap(val);
+            }
+        }
+
+        google.maps.event.addListener(map, 'dragend', MapDragEndEvent);
+        google.maps.event.addListener(map, 'zoom_changed', MapZoomChangedEvent);
+
+        function MapDragEndEvent()
+        {
+            //$("#mapLoader").show();
+            //setTimeout(TriggerDataLoad, 3000);
+        }
+        function MapZoomChangedEvent()
+        {
+            //$("#mapLoader").show();
+            //setTimeout(TriggerDataLoad, 3000);
+        }
+
+        function TriggerDataLoad()
+        {
+            console.log("South West Lat = " + map.getBounds().getSouthWest().lat());
+            console.log("South West Lng = " + map.getBounds().getSouthWest().lng());
+            var zoomLevel = map.getZoom();
+            $("#zoom_value").html("Zoom: " + String(zoomLevel));
+
+            var lat0 = map.getBounds().getNorthEast().lat();
+            var lng0 = map.getBounds().getNorthEast().lng();
+            var lat1 = map.getBounds().getSouthWest().lat();
+            var lng1 = map.getBounds().getSouthWest().lng();
+
+            //Load yamaha data
+            if (zoomLevel >= DATA_LOAD_ZOOM_LEVEL)
+            {
+                $.ajax({
+                    type: 'GET',
+                    url: '{% url 'GetBoundedPlaceLocation' %}',
+                    data: { latUpper: lat0, lngUpper: lng0, latBottom: lat1, lngBottom: lng1 },
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function (result)
+                    {
+                        var data = result;
+                        PopulateMSRCurrentLocations(data.result);
+                        PopulateCircleCoverageMarkers(data.result)
+                        console.log(data.result);
+                    }
+                });
+            }
+
+            $("#mapLoader").hide();
+        }
+
+        //show / hide traffic layer
+        $('#traffic_layer_control').click(function () {
+            event.preventDefault();
+            if (STATE_TrafficLayer === 0)
+            {
+                STATE_TrafficLayer = 1;
+                trafficLayer.setMap(map);
+            }
+            else {
+                STATE_TrafficLayer = 0;
+                trafficLayer.setMap(null);
+            }
+        });
+
+        //show / hide coverage layer
+        $('#coverage_layer_control').click(function () {
+            event.preventDefault();
+            if (STATE_CoverageLayer === 0) {
+                STATE_CoverageLayer = 1;
+                ToggleMarkerGoup(circleInfographMarkers, map);
+            }
+            else {
+                STATE_CoverageLayer = 0;
+                ToggleMarkerGoup(circleInfographMarkers, null);
+            }
+        });
+
+    });
+
+</script>
+
+{% endblock %}
